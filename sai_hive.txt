@@ -1,0 +1,973 @@
+
+
+
+
+
+-----------------github step------------------
+
+--create repository with description
+--open the terminal
+--pwd
+--come the location where our project is located
+--ls
+--git init 
+--git add . (add all files inside folder in staging)
+--git status
+--git commit -m "first commit"
+--copy url 
+--git remote add origin htts://
+--git push -u origin master
+--username and password
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-------------------------------------Hive---------------------------------------------------------------------------
+
+--sqoop can not exort semi structured data.....
+--create table customermod10 ( custid INT, firstname VARCHAR(20), lastname VARCHAR(20), city VARCHAR(50), age INT, createdt date, transactamt int );
+load data infile '/home/cloudera/data.parquet' into table customermod10 fields terminated by ',';
+
+
+scala> val df = spark.read.format("csv").option("delimiter",",").option("header","true").load("/user/cloudera/data_customer/part-m-00000")
+
+
+--creating table uder /user/hive/warehouse/db_name/table_name (by default)
+create table txnrecords(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile;
+
+use default;
+alter table txnrecords rename to zeyocheck.txnrecors;
+use zeyocheck;
+
+load data local inpath '/home/cloudera/data/txns' into table txnrecords;
+
+
+select * from txnrecords limit 10;
+
+--if data is got deleted from hdfs, need to put txns from edge node to hdfs
+
+
+hdfs dfs -ls /user/hive/warehouse/zeyocheck.db/txnrecords
+hdfs dfs -rmr /user/hive/warehouse/zeyocheck.db/txnrecords/txns
+
+select * from txnrecords limit 10;
+
+hdfs dfs -put '/home/cloudera/data/txns' /user/hive/warehouse/zeyocheck.db/txnrecords
+
+hdfs dfs -mkdir /user/cloudera/datadir
+
+hdfs dfs -put '/home/cloudera/data/txns' /user/cloudera/datadir 
+
+--creating table on /user/cloudera/datadir
+--table txnrecords_loc poiting to the direcotry /user/cloudera/datadir 
+
+create table txnrecords_loc(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/datadir';
+
+
+
+create table txnrecords_target(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile;
+
+insert into txnrecords_target select * from txnrecords_loc
+
+hdfs dfs -ls /user/hive/warehouse/zeyocheck/txnrecords_target
+
+--to show database name
+hive> set hive.cli.print.current.db=ture;
+
+--drop both the tables and check back in directory
+
+
+-to load data from edge node to hive 
+load data local inpath '/home/cloudera/data/txns' into table
+
+--to load data from hdfs to hive
+load data inpath '/user/cloudera/data' into table
+
+
+
+--this will create mdir directry and put a table txnrecords_t on top of it.
+create table txnrecords_t(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/table_check/mdir'; 
+
+describe formatted txnrecords_t  (it will show managed table.....??)
+
+load data local inpath '/home/cloudera/data/txns' into table 
+show tables;
+drop table txnrecords_t; (directry gone, data gone)
+show tables;
+
+
+
+
+
+--external table
+create external table txnrecords_e(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/table_check/edir'; 
+
+show tables;
+describe formatted txnrecords_e;
+load data local inpath '/home/cloudera/data/txns' into table txnrecords_e;
+drop table txnrecords_e;
+show tables;t(--check directory edir)
+
+------------------------14)-hive types of table static load static insert partitions-------------------------------
+
+create database tab_check;
+use tab_check;
+
+create table txnrecords_m(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/mdir'; 
+
+load data local inpath '/home/cloudera/data/txns' into table txnrecords_m;
+
+hdfs dfs -ls /user/cloudera/mdir/
+
+hdfs dfs -cat /user/cloudera/mdir/txns
+
+select *from txnrecords_m limit 10;
+
+
+
+create external table txnrecords_e(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile;
+
+show tables;
+
+insert into txnrecords_e select * from  txnrecords_m;
+
+select *from txnrecords_e limit 10;
+
+hdfs dfs -ls /user/hive/warehouse/tab_check.db/txnrecords_e
+
+drop table txnrecords_m;
+
+
+show tables;
+
+hdfs dfs -ls /user/cloudera/mdir
+
+drop table txnrecords_e;
+
+show tables;
+
+hdfs dfs -ls /user/hive/warehouse/tab_check.db/txnrecords_e
+
+----------------
+hive doesn't have any restriction creting multiple tables on the top of same location, on top of same locations,
+I created both external and managed table, I dropped external and query managed table, will data will be there?
+yes we see tthe data as external table simply drops table name but data is there. if vice versa ...what will there be data? ie.e 
+if I dropped managed table and query external table, will there be data? directory associated with is deleted ....
+not file...
+
+--------------
+hive>!hdfs dfs -put /home/cloudera/data/txns /user/cloudera/data;
+hive>!hdfs dfs -ls /user/cloudera/data;
+
+
+create external table txnrecords_ext(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/data'; 
+
+select * from txnrecords_ext limit 10;
+
+
+
+create table txnrecords_man(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/data'; 
+
+select * from txnrecords_man limit 10;
+
+
+drop table txnrecords_ext;
+
+select *from txnrecords_ext limit 10;
+
+select *from txnrecords_man limit 10;
+
+create external table txnrecords_ext(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/data'; 
+
+hdfs dfs -ls /user/cloudera/data
+
+select *from txnrecords_man limit 10;
+
+drop table txnrecords_man;
+
+
+
+select * from txnrecords_ext limit 10;
+--no data
+select * from txnrecords_man limit 10;
+--no data
+
+------------------static--partitions------------------
+
+cteate table country_data (id int, name string, check string) row format delimited fields terminated by ','
+stored as textfile location '/user/cloudera/country_usual;
+
+load data local inpath '/home/cloudera/nonpartitiondata_data into table country_data
+
+
+cteate table country_partition (id int, name string, check string) partitiond by (country string) row format delimited fields terminated by ','
+stored as textfile location '/user/cloudera/country_partition;
+
+load data local inpath '/home/cloudera/partitiondata/IND_Data' into table country_partition;
+--error
+
+load data local inpath '/home/cloudera/partitiondata/IND_Data' into table country_partition partition (country='IND');
+
+load data local inpath '/home/cloudera/partitiondata/US_Data' into table country_partition partition (country='US');
+
+load data local inpath '/home/cloudera/partitiondata/UK_Data' into table country_partition partition (country='UK');
+
+select * from country_partition;
+
+hdfs dfs -ls /user/cloudera/partitioneddata/ 
+ll
+mkdir data10
+cd data10
+wget https://zeyonifibucket.s3.amazonaws.com/partitioneddata.zip
+ls
+unzip partitioneddata.zip
+ls
+cd partitioneddata
+
+
+-----------class task---------------
+create database zeyo
+create table normal_table (id int, name string, check string ) row format delimited fields terminated by ',' location '/user/cloudera/normal_dir';
+
+show tables;
+load data local inpath '/home/cloudera/partitiondata/IND_Data' into table normal_table;
+
+load data local inpath '/home/cloudera/partitiondata/US_Data' into table normal_table;
+
+load data local inpath '/home/cloudera/partitiondata/UK_Data' into table normal_table;
+
+select * from normal_table limit 10;
+
+hdfs dfs -ls /user/cloudera/normal_dir
+
+
+
+
+create table partition_table (id int, name string, check string ) partitioned by (country string) row format delimited fields terminated by ',' 
+location '/user/cloudera/partition_dir';
+
+show tables;
+hdfs dfs -ls /user/cloudera/partition_dir
+
+
+load data local inpath '/home/cloudera/partitiondata/IND_Data/IND_Txns.csv' into table partition_table partition(country='IND');
+
+load data local inpath '/home/cloudera/partitiondata/US_Data' into table partition_table partition(country='US');
+
+load data local inpath '/home/cloudera/partitiondata/UK_Data' into table partition_table partition(country='UK');
+
+hdfs dfs -ls /user/cloudera/partition_dir
+
+---------------static insert partitions------------------
+
+use tab_check;
+
+mkdir /home/cloudera/partitiondata/allcountry
+
+create table partition_src (id int, name string, check string ) row format delimited fields terminated by ',' location '/user/cloudera/partition_src';
+
+load data local inpath '/home/cloudera/partitiondata/allcountry' into table partition_src;
+
+select * from partition_src;
+
+create table partition_target (id int, name string, check string ) partiitoned by (country string) row format delimited fields terminated by ',' location '/user/cloudera/partition_target';
+
+insert into partition_target partition(country='US') select id,name, check from partition_src where country='US';
+
+insert into partition_target partition(country='UK') select id,name, check from partition_src where country='UK';
+
+
+
+----------------------------dynamic partitions------------------------
+
+--static load
+
+
+--static insert
+--scenario 1-----
+use tab_check;
+create table zeyo_src (id int, name string, check string, country string) row format delimited 
+fields terminated by ',' stored as textfile location '/user/cloudera/zeyo_src';
+
+
+load data local inpath '/home/cloudera/partitiondata/allcountry' into table zeyo_src ;
+
+
+
+create table zeyo_tar (id int, name string, check string ) partitioned by (country string) row format delimited 
+fields terminated by ',' stored as textfile location '/user/cloudera/zeyo_tar';
+
+insert into zeyo_tar partition(country) select id,name, check , country from zeyo_src ;
+--it will not work
+
+set hive.exec.dynamic.partition.mode=nonstrict;
+
+insert into zeyo_tar partition(country) select id,name, check , country from zeyo_src ;
+
+hdfs dfs -ls /user/cloudera/zeyo_tar
+
+--scenario 2----
+hdfs dfs -rmr /user/cloudera/zeyo_tar/*
+
+insert into zeyo_tar partition(country='US') select id,name, check from partition_src ;
+
+
+
+
+
+
+insert into zeyo_tar partition(country='IND') select id,name, check from zeyo_src where country='IND';
+
+insert into zeyo_tar partition(country='US') select id,name, check from zeyo_src where country='US';
+
+load data local inpath '/home/cloudera/partitiondata/IND_Data' into table zeyo_tar partition( country = 'IND');
+
+
+
+
+------------
+multiple countries name at a same time is not possible in static insert, we need to insert all statement for each country
+
+qn) through dynamic, can I restrict any country?
+
+insert into zeyo_tar partition(country) select id,name, check , country from zeyo_src where country in ('IND', 'US');
+only two partition created.
+
+-------------------sub patition-----------------
+
+create table txnrecords_tar_sub_partition(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, check string)
+partitioned by (country string, spendby string)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/txnrecords_tar_sub_partition'; 
+
+
+
+insert into txnrecords_tar_sub_partition partition(country, spendby) select txnno, txndate,custno, amount, 
+category, product, city, state, check, country, spendby from txnrecords_src;
+
+-----
+Each partition is folder. By default, we can have 100 folders for one map reduce job;
+set hive.exec.max.dynamic.partitions=500000;
+-------
+
+-------------bucket-----------
+
+set hive.enforce.bucketing=true;
+
+create table txnrecords_bucket(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, check string)
+partitioned by (country string, spendby string)
+clustered by (txnno) into 5 buckets
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/txnrecords_bucket'; 
+
+
+nsert into txnrecords_bucket partition(country, spendby) select txnno, txndate,custno, amount, 
+category, product, city, state, check, country, spendby from txnrecords_src;
+
+cd /etc/hive/conf
+
+----------------------------buckting with schama evolution-------------------------------------------------------
+
+
+create table txnrecords_ssl(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby string, check string, country string)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/txnrecords_ssl'; 
+
+hdfs dfs -ls /user/cloudera/txnrecords_ssl
+
+load data local inpath '/home/cloudera/data/all_country' into table txnrecords_ssl;
+
+hdfs dfs -ls /user/cloudera/txnrecords_ssl
+
+create table txnrecords_tt(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, check string)
+partitioned by (country string, spendby string)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/txnrecords_tt'; 
+
+set hive.exec.dynamic.partition.mode = notstrict;
+
+
+insert into txnrecords_tt partition(country, spendby) select txnno, txndate,custno, amount, 
+category, product, city, state, check, country, spendby from txnrecords_ssl;
+--18s without bucketing
+--bucketing
+
+create table txnrecords_bb(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, check string)
+partitioned by (country string, spendby string)
+clustered by (txnno) into 3 buckets
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/txnrecords_bb'; 
+
+set hive.exec.dynamic.partition.mode = notstrict;
+set hive.enforce.buckting = true;
+
+insert into txnrecords_bb partition(country, spendby) select txnno, txndate,custno, amount, 
+category, product, city, state, check, country, spendby from txnrecords_ssl;
+--takes ~52 almost 3 times than without bucketing 
+
+
+select count(1) from tabelname where country = 'IND' and spendby ='cash' and id='2035'
+
+
+----------------issues with schema evolution in text file and resolved by avro file---------------------------
+mysql>create database avorcheck
+mysql>create table customer (id int, name string, amt int)
+mysql>insert into customer values (1, "zeyo", 40)
+mysql>insert into customer values (2, "analytics", 40)
+
+
+sqoop import --connect jdbc:mysql://localhost/avrocheck --username cloudera --password cloudera --table customer -m 1 
+--target-dir /user/cloudera/text_data 
+
+hdfs dfs -cat /user/cloudera/text_data
+
+
+
+hive>create table text_tab(id int, name string, amount int) row format delimited fields terminated by ','
+location '/user/cloudera/text_data
+
+
+alter table customer drop column name;
+
+mysql>insert into customer values (3, 50)
+
+sqoop import --connect jdbc:mysql://localhost/avrocheck --username cloudera --password cloudera --table customer -m 1 
+--target-dir /user/cloudera/text_data --incremental-append --check-columns --last-value 3
+
+
+hdfs dfs -ls /user/cloudera/text_data
+hdfs dfs -ls /user/cloudera/text_data/part-m-00000
+
+hdfs dfs -ls /user/cloudera/text_data/part-m-00001
+
+select * text_tab ;
+-----------------
+--issues above are fields are dropped in mysql after we sqoop import, schema not matched. 
+--import the data as avro file and it will be resolved.
+-----------------------
+sqoop import --connect jdbc:mysql://localhost/avrocheck --username cloudera --password cloudera --table customer -m 1 
+--target-dir /user/cloudera/avro_data --as-avrodatafile
+
+hdfs dfs -ls /user/cloudera/avro_data
+
+hive>create external table avrodata_tab
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
+STORED AS AVRO 
+location '/user/cloudera/avro_data'
+TBLPROPERTIES ('avro.schema.url' = '/user/cloudera/avro_avsc_dir/customer_new.avsc');
+hive>select * from avrodata_tab;
+
+mysql>alter table customer drop column name;
+
+mysql>insert into cusotmer values(4,100)
+
+sqoop import --connect jdbc:mysql://localhost/avrocheck --username cloudera --password cloudera --table customer -m 1 
+--target-dir /user/cloudera/text_data --incremental-append --check-columns --last-value 3 --as-avrodatafile
+
+select * from avrodata_tab;
+
+--data which corresponding column is deleted , show null in that place.
+
+
+
+-------------------aws hive cloud integration-------------------------------------------------
+--------- EMR--------------
+hadoop
+pwd
+/home/hadoop/
+
+hdfs dfs -ls /user/
+
+hdfs dfs -ls /user/hadoop/
+
+hive
+
+create database zeyod;
+use zeyod;
+
+hdfs dfs -ls /user/hive/warehouse/
+
+show tables;
+
+
+create table txnrecords(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile;
+
+hdfs dfs -ls /user/hive/warehouse/zeyod.db/
+
+--winscp to aws edgenode to copy data from windows to edgenode of aws
+
+load data local inpath /home/hadoop/data/txns into table txnrecords
+
+hdfs dfs -mkdir /user/hadoop/txn_dir
+
+ls
+cd data
+hdfs dfs -put txns /user/hadoop/txn_dir
+
+hdfs dfs -ls /
+
+--creating hive table in external location on the top of /user/hadoop/txn_dir
+
+create table txnrecords_loc(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/hadoop/txn_dir';
+
+
+select * from txnrecords_loc limit 10;
+
+drop table txnrecords_loc;
+
+hdfs dfs -put txns /user/hadoop/txn_dir
+
+-------------s3-----------------------
+--inside amazon s3, zeyobucket/data/txns,  copy url for location 
+--creating hive table on top of this directroy  on s3
+
+ use zeyod;
+create table txnrecords1_s3(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location 's3a://zeyonifibucket/data/';
+
+select * from txnrecords1_s3 limit 10;
+
+describe formatted txnrecords1_s3;
+
+drop table txnrecords1_s3;
+
+
+--create directory with all_country_name in s3, upload all_country from downloads from windows 
+
+create table txnrecords1_src(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby string ,country_check string, country string)
+
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location 's3a://zeyohivebucket/all_country_dir/'; 
+
+
+select * from txnrecords1_src limit 10;
+
+
+
+
+create table txnrecords1_src(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby string ,country_check string)
+partitioned by (country string, spendby string)
+--clustered by (txnno) into 3 buckets
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location 's3a://zeyohivebucket/partition_dest/'; 
+
+--check in s3, partition_dest directory is created and table also create 
+
+insert into txn_dest partition (country) 
+select txnno, txndate, custno, amount, category, product, city,state, spendby, country_check from txn_src;
+
+--check in s3 under partition_dest directory, we saw partitions uk, usa and ind with file part starting with 00000_0 and so on
+--tez not work in cloudera 
+
+------------data transfer from --s3 to cloudera 
+--just try to make cloudera environment as EMR--------------
+cloudera login
+pwd
+sudo vi /etc/hadoop/conf/core-site.xml
+
+hive
+
+--in s3, i have a bucket, inside bucket, i have folder with all_country.csv file. Hive on cloudera can go 
+--to remote and query all_country.csv from s3 remotely , need to do some configuration.
+
+
+--hive table on cloudera with location s3 (s3a://zeyohivebucket/all_country_dir/ without updating configuration 
+--s3, s3a, s3n
+
+create table txn_src(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby string ,country_check string, country string)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location 's3a://zeyohivebucket/all_country_dir/'; 
+
+select * from txn_src limit 10;
+--failed connection, table is created and pointing but need to authenticate.
+
+sudo vi /etc/hadoop/conf/core-site.xml
+
+--add  configuration property first name as fs.s3a.access.key and second as fs.s3a.secret.key and third as fs.defaultFS
+
+hive
+
+select * from txn_src limit 10;
+set hive.exec.dynamic.partition.mode = nonstrict;
+
+create table txn_tt(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby string ,country_check string)
+partitioned by (country string)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location 's3a://zeyohivebucket/all_lpd_dir/'; 
+
+insert into txn_dest partition (contry string) 
+select txnno, txndate, custid, custno, amount, category, product, city,state, spendby, country_check, country from txn_src;
+
+--to check directory is created or not 
+--cloudera terminal, remove all existing .aws 
+rm -rf /home/cloudera/.aws
+
+aws configure
+access key
+secret key 
+ap-south-1
+
+--it will show the directory is created or not
+
+aws s3 ;s s3://zeyohivebucket/
+
+aws s3 ;s s3://zeyohivebucket/all_country_dir/
+
+aws s3 ;s s3://zeyohivebucket/all_country_dir/country=IND/
+
+
+------------------------hive shell command--------------------------------------------------------
+
+--1st ways 
+hive -e "create database zeodl; use zeodl; create table sampletable(id int);insert into sampletable values(1)"
+
+hive -e "select * from txns limit 1;"
+
+
+--2nd ways 
+vi exec.hql
+
+create database zeodl; use zeodl; create table sampletable(id int);insert into sampletable values(1);
+
+select * from txns limit 1;
+
+hive -f exec.hql
+
+
+------------------------------------------azure hive ---------------------------------------------------
+
+-Azure  portal , hdinsight, Hadoop (quite fixed all components unlike aws have more options to select )
+-create hdinsight cluster, new storage account = newstoragezeyo
+-aws hive can be created on the hdfs in EMR and s3 as well
+-in azure, hive can be created on the top of hdfs and other containers as well.
+--storage, newstoragezeyo, blob, hdfs hcontainers, all user folder seen under this containers.
+--storage account=>containers=>folders
+
+--click on plus sign to create other container ,named as zeyocontainer , container after creation generally not contain hdfs.
+--hdfs is found inside the continaer and insed hdfs, we have hive and so on.
+--hive can be created on the top of container containing hdfs and any other new container.
+--ssh+cluster login , copy, putty  ssh ,
+--list Hadoop folders, folders got populated.
+Hadoop fs -ls /
+Hadoop fs -ls /user
+Hadoop fs -touchz /user/ambari-qa/sample
+
+
+Putty: 
+Azure url: sshuser@zeyohdclusterbach29-ssh.azurehdinsight.net
+Password: Aditya@usa908
+
+Pwd
+--to start hive
+/usr/bin/hive
+Hive> create database zeyodb;
+--by default hive storage is /hive/warehouse/zeyodb.db with hivesampletable default
+Use zeyodb;
+Create table test (id int);
+--table will be blob
+Insert into test values (1);
+Describe formatted test;
+Drop table managed_table;
+Drop table test;
+Hadoop fs -mkdir /user/txn
+--use winscp to bring data from windows to edgenode of azure zyohdcluster29 
+
+
+--storage account name: newstoragezeyo
+--container: txncontainer
+--folder name:txndir
+
+create table txn_tt(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby string ,country_check string)
+partitioned by (country string)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location 'wasb://txncontainer@newstoragezeyo.blob.core.windows.net//txndir'; 
+
+------------------------DML in hive--------------------------------------------------------
+--we can do DML in hive following the conditions
+--1) bucketed table 2) orc file format 3)Enable transactional property
+
+
+set hive.support.concurrency = true;
+set hive.enforce.bucketing = true;
+set hive.exec.dynamic.partition.mode = notstrict;
+set hive.txn.manager = org.apache.hadoop.hive.ql.lockmgr.DbTxnManager;
+
+create database HiveTest;
+
+
+--create HiveTest table with DML support 
+create table HiveTest1 (EmployeeID Int, FirstName string, Designation string, salary Int, Department string)
+clustered by (department) into 3 buckets
+stored as orc
+TBLPROPERTIES ('transactional' = 'true');
+
+select * from HiveTest1;
+
+
+
+--insert
+insert into table HiveTest1 values (1,'Rohit', 'MD', 88000,'Development');
+
+select * from HiveTest1;
+
+--update
+update HiveTest1 set salary = 111111 where EmployeeID = 1;
+
+select * from HiveTest1;
+
+--deleted
+delete from HiveTest1 where employeeID = 1;
+
+select * from HiveTest1;
+
+
+
+
+--create HiveTest table with DML support 
+create tabel HiveTest2 (EmployeeID Int, FirstName string, Designation string, salary Int, Department string)
+stored as orc
+TBLPROPERTIES ('transactional' = 'true');
+
+insert into table HiveTest2 values (1,'Rohit', 'MD', 88000,'Development');
+update HiveTest1 set salary = 111111 where employeeID = 1;
+
+
+
+--insert works but update not work
+create tabel HiveTest1 (EmployeeID Int, FirstName string, Designation string, salary Int, Department string)
+clustered by (department) into 3 buckets
+TBLPROPERTIES ('transactional' = 'true');
+
+insert into table HiveTest2 values (1,'Rohit', 'MD', 88000,'Development');
+update HiveTest1 set salary = 111111 where employeeID = 1;
+
+------------------------------------------hive join-----------------------------------------------------
+select unix_timestamp('22-06-2020', 'dd-MM-yyyy')
+
+select from _unixtime(unix_timestamp('22-06-2020', 'dd-MM-yyyy'))
+
+select month(from _unixtime(unix_timestamp('22-06-2020', 'dd-MM-yyyy')));
+
+select from _unixtime(unix_timestamp('22-06-2020', 'dd-MM-yyyy'), 'yyyy-MM-dd');
+--HH represents 24 hours , hh represents 12 hours 
+
+--hive joins----------
+
+--broadcast join in spark correponds to map side join in hive
+--map side join,bucket join, sort merger bucket join, skew join
+------map join --------------------
+
+--lot of shuffling happened. Once it will map or join and then reducers come into play.
+--select mapjoin (small table), here table2 is small.
+--all the blocks of small table will go and sitting all the nodes of large table. Large blocks of large table doesn’t need to go and search the blocks of small table.
+--In the mapper side itself, the joining will happen. 
+--Memory consumption might happen as entire table will go to all nodes and cached.
+--broadcast the small dataframe, and map side join the small table.
+--hadoop fs -du /user/cloudera/directory/table1
+--In normal join, we might need to use reducers in join but in map side join, no need to use reducers.
+Select /*+ mapjoin(s) */ l.key, l.value from s join l on s.key = l.key 
+
+--------------------------hw----------------------------------------------
+
+hdfs dfs -mkdir /user/cloudera/data/
+hdfs dfs -put txns /user/cloudera/data/
+hdfs dfs -ls /user/cloudera/data/txns
+hdfs dfs -cat  /user/cloudera/data/txns | head -10
+
+--creating hive table txns_normal on the top of /user/cloudera/data/ directory with txndate as string data types
+use test;
+create table txns_normal(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/data';
+
+select * from txns_normal limit 10;
+
+describe formatted txns_normal;
+
+set hive.cli.print.header=true;
+
+--creating hive table txns_normal on the top of /user/cloudera/data/ directory with txndate as date data types
+use test;
+create table txns_date(txnno INT, txndate date, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/date';
+
+select * from txns_date limit 10;
+
+describe formatted txns_date;
+
+insert into table txns_date select txnno, cast(to_date(from_unixtime(unix_timestamp(txndate, 'dd-MM-yyyy'))) as date),custno, amount, category, product,city, state, spendby from txns_normal;
+
+
+select * from txns_date limit 10;
+--------------------------------------------
+
+set hive.exec.dynamic.partition.mode=nonstrict;
+hdfs dfs -mkdir /user/cloudera/data/
+hdfs dfs -put txns /user/cloudera/data/
+hdfs dfs -ls /user/cloudera/data/txns
+hdfs dfs -cat  /user/cloudera/data/txns | head -10
+
+
+create table txns_normal(txnno INT, txndate STRING, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/data';
+
+select * from txns_normal limit 10;
+
+describe formatted txns_normal;
+
+set hive.cli.print.header=true;
+
+--creating hive table txns_normal on the top of /user/cloudera/data/ directory with txndate as date data types
+
+create table txns_date(txnno INT, txndate date, custno INT, amount DOUBLE, category STRING, product STRING, city STRING, state STRING, spendby STRING)
+row format delimited 
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location '/user/cloudera/date';
+
+select * from txns_date limit 10;
+
+describe formatted txns_date;
+
+insert into table txns_date select txnno, cast(to_date(from_unixtime(unix_timestamp(txndate, 'dd-MM-yyyy'))) as date),custno, amount, category, product,city, state, spendby from txns_normal;
+
+
+select * from txns_date limit 10;
+
+
+
+
+CREATE TABLE txnrecords_dest1(
+  txnno int,
+  txndate date,
+  custno int,
+  amount double,
+  category string,
+  product string,
+  city string,
+  state string,
+  spendby string) partitioned by (year date, month date, day date) row format delimited fields terminated by ',' lines terminated by '\n' stored as textfile location '/user/cloudera/date';
+  
+   set hive.exec.dynamic.partition.mode=nonstrict;
+  insert into txnrecords_dest1 partition(year,month,day) select *, year(txndate),month(txndate),day(txndate) from txns_date;
+
+
+
